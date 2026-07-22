@@ -329,13 +329,13 @@ with st.sidebar:
     if "reset_counter" not in st.session_state:
         st.session_state["reset_counter"] = 0
 
-    # ── API Key（用 localStorage + URL 参数双边记住，不用 value= 所以没有 Press Enter to apply）──
+    # ── API Key ──
     if "api_key_value" not in st.session_state:
         st.session_state["api_key_value"] = st.query_params.get("_k", "")
 
     st.markdown("##### 🔑 DeepSeek API Key")
 
-    # 首次加载：从 localStorage 恢复到 URL 参数
+    # 首次加载：从 localStorage 恢复
     if not st.session_state["api_key_value"]:
         st.components.v1.html("""
         <script>
@@ -350,33 +350,33 @@ with st.sidebar:
         </script>
         """, height=0)
 
-    with st.form("api_key_form", clear_on_submit=False, border=False):
-        user_api_key = st.text_input(
-            "API Key",
-            type="default",
+    if st.session_state["api_key_value"]:
+        masked = st.session_state["api_key_value"][:5] + "***" + st.session_state["api_key_value"][-4:]
+        st.caption(f"✅ 当前: {masked}")
+
+    with st.form(f"api_key_form_{st.session_state.reset_counter}", clear_on_submit=False, border=False):
+        user_api_key = st.text_area(
+            "Key",
+            value=st.session_state["api_key_value"],
             placeholder="sk-xxxxxxxxxxxxxxxx",
             label_visibility="collapsed",
+            height=68,
             key=f"api_key_{st.session_state.reset_counter}",
         )
         saved = st.form_submit_button("💾 保存", use_container_width=True)
 
     if saved:
-        if user_api_key:
-            st.session_state["api_key_value"] = user_api_key
-            st.query_params["_k"] = user_api_key
+        if user_api_key.strip():
+            st.session_state["api_key_value"] = user_api_key.strip()
+            st.query_params["_k"] = user_api_key.strip()
             st.components.v1.html(f"""
             <script>
-            localStorage.setItem('paper_typesetting_api_key', '{user_api_key}');
+            localStorage.setItem('paper_typesetting_api_key', '{user_api_key.strip()}');
             </script>
             """, height=0)
-            st.toast("✅ API Key 已保存", icon="✅")
+            st.rerun()
         else:
             st.toast("⚠️ 请输入 Key", icon="⚠️")
-
-    if st.session_state["api_key_value"]:
-        st.caption("✅ 已配置（刷新不会丢失）")
-    else:
-        st.caption("输入你的 Key，点「保存」后自动记住")
 
     st.divider()
 
