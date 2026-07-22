@@ -295,17 +295,16 @@ p, label, li { color: #000000 !important; font-weight: 500; }
 .stCaption { color: #ffffff !important; font-size: 0.85rem; font-weight: 700; text-shadow: 0 1px 3px rgba(0,0,0,0.5); }
 #MainMenu { visibility: hidden; }
 footer { visibility: hidden; }
-/* Streamlit 一键部署按钮 — 已启用 */
-/* 工具栏保留（里面包含侧边栏展开按钮），只隐藏不需要的 */
+[data-testid="stDeployButton"] { display: none !important; }
 [data-testid="stToolbarActions"] { display: none !important; }
 [data-testid="stMainMenuButton"] { display: none !important; }
+[data-testid="stHeader"] { background: transparent !important; }
+[data-testid="stToolbar"] { background: transparent !important; }
 
-/* ── 工具栏透明，只保留侧边栏展开按钮 ── */
-[data-testid="stHeader"] {
-    background: transparent !important;
-}
-[data-testid="stToolbar"] {
-    background: transparent !important;
+/* ── 隐藏密码框的 "Press Enter to apply" 提示 ── */
+section[data-testid="stSidebar"] .stTextInput small,
+section[data-testid="stSidebar"] .stTextInput [data-testid="stCaption"] {
+    display: none !important;
 }
 
 </style>
@@ -335,9 +334,18 @@ with st.sidebar:
         st.session_state["api_key_value"] = st.query_params.get("_k", "")
 
     st.markdown("##### 🔑 DeepSeek API Key")
+    # ── API Key 输入（伪装密码效果，避免浏览器双小眼睛）──
+    st.markdown("""
+    <style>
+    .api-key-masked input {
+        -webkit-text-security: disc !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     user_api_key = st.text_input(
         "API Key",
-        type="password",
+        type="default",
         value=st.session_state["api_key_value"],
         placeholder="sk-xxxxxxxxxxxxxxxx",
         label_visibility="collapsed",
