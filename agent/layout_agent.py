@@ -16,7 +16,6 @@ def layout_agent_node(state: MaingraphState):
             agent_name = issue.get("agent_name")
             if agent_name:
                 failed_agents.add(agent_name)
-        print(f"[LayoutAgent] 重试模式：失败的Agent={failed_agents}", flush=True)
 
     update: Dict[str, Dict] = {
         "author": {"agent_mission": None},

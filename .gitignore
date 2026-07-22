@@ -18,6 +18,15 @@ build/
 # 输出文件
 data/output/*.docx
 data/output/*.json
+experiment/output/*.docx
+experiment/output/*.json
+
+# 临时截图/调试文件
+ui/bug*
+ui/*错误*
+ui/*问题*
+ui/页面*
+ui/111*
 
 # 上传临时文件
 ui/temp_uploads/
