@@ -334,7 +334,6 @@ with st.sidebar:
         st.session_state["api_key_value"] = st.query_params.get("_k", "")
 
     st.markdown("##### 🔑 DeepSeek API Key")
-    # ── API Key 输入（伪装密码效果，避免浏览器双小眼睛）──
     st.markdown("""
     <style>
     .api-key-masked input {
@@ -343,29 +342,30 @@ with st.sidebar:
     </style>
     """, unsafe_allow_html=True)
 
-    user_api_key = st.text_input(
-        "API Key",
-        type="default",
-        value=st.session_state["api_key_value"],
-        placeholder="sk-xxxxxxxxxxxxxxxx",
-        label_visibility="collapsed",
-        key=f"api_key_{st.session_state.reset_counter}",
-    )
+    with st.form("api_key_form", clear_on_submit=False, border=False):
+        user_api_key = st.text_input(
+            "API Key",
+            type="default",
+            value=st.session_state["api_key_value"],
+            placeholder="sk-xxxxxxxxxxxxxxxx",
+            label_visibility="collapsed",
+            key=f"api_key_{st.session_state.reset_counter}",
+        )
+        saved = st.form_submit_button("💾 保存", use_container_width=True)
 
-    if user_api_key:
+    if saved:
+        if user_api_key:
+            st.session_state["_last_saved_key"] = user_api_key
+            st.session_state["api_key_value"] = user_api_key
+            st.query_params["_k"] = user_api_key
+            st.toast("✅ API Key 已保存", icon="✅")
+        else:
+            st.toast("⚠️ 请输入 Key", icon="⚠️")
+
+    if st.session_state["api_key_value"]:
         st.caption("✅ 已配置，关掉浏览器也不会丢失")
     else:
         st.caption("输入你的 Key，用完即走不会存储到服务器")
-
-    # ── 保存/清除 Key ──
-    if user_api_key and user_api_key != st.session_state.get("_last_saved_key"):
-        st.session_state["_last_saved_key"] = user_api_key
-        st.session_state["api_key_value"] = user_api_key
-        st.query_params["_k"] = user_api_key
-    elif not user_api_key and "_last_saved_key" in st.session_state:
-        del st.session_state["_last_saved_key"]
-        st.session_state["api_key_value"] = ""
-        st.query_params.pop("_k", None)
 
     st.divider()
 
