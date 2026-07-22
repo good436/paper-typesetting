@@ -37,7 +37,14 @@ def get_llm(
     timeout: float = 60.0,
     **kwargs,
 ):
-    """创建 DeepSeek LLM 实例（兼容 OpenAI API）"""
+    """创建 DeepSeek LLM 实例（兼容 OpenAI API）
+    优先使用当前用户输入的 API Key，否则用服务器默认 Key
+    """
+    from config.setting import get_user_api_key
+    user_key = get_user_api_key()
+    # 如果用户提供了自己的 Key，优先使用
+    if user_key:
+        api_key = user_key
     return ChatOpenAI(
         api_key=api_key,
         model=model,

@@ -329,6 +329,16 @@ with st.sidebar:
     if "reset_counter" not in st.session_state:
         st.session_state["reset_counter"] = 0
 
+    st.markdown("**🔑 DeepSeek API Key**")
+    st.caption("使用你自己的Key，不会存储也不会被他人看到")
+    user_api_key = st.text_input(
+        "API Key", type="password",
+        placeholder="sk-xxxxxxxxxxxxxxxx",
+        label_visibility="collapsed",
+        key=f"api_key_{st.session_state.reset_counter}",
+    )
+    st.divider()
+
     st.markdown("**选择论文文件**")
 
     # on_change：文件变化时同步更新 session_state
@@ -389,6 +399,10 @@ if not st.session_state["process_started"]:
     if st.button(btn_label, use_container_width=True, type="primary", disabled=not _file_data):
         st.session_state["user_input"] = text_input
         st.session_state["displayed_messages"] = set()
+        # 注入用户自己的 API Key（线程隔离，不会泄露给其他用户）
+        from config.setting import set_user_api_key
+        if user_api_key.strip():
+            set_user_api_key(user_api_key.strip())
         if _file_data:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
                 tmp.write(_file_data["data"])

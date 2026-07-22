@@ -1,6 +1,18 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import threading
+
+# 线程本地存储 — 每个用户可以用自己的 API Key
+_local = threading.local()
+
+def set_user_api_key(key: str):
+    """设置当前线程的用户 API Key"""
+    _local.user_api_key = key
+
+def get_user_api_key() -> str:
+    """获取当前线程的用户 API Key，如果用户没填则用默认的"""
+    return getattr(_local, 'user_api_key', None) or DEEPSEEK_API_KEY
 
 # 加载 .env 文件（项目根目录）
 env_path = Path(__file__).resolve().parent.parent / ".env"
