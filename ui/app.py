@@ -308,58 +308,6 @@ footer { visibility: hidden; }
     background: transparent !important;
 }
 
-/* ============================================
-   侧边栏 - API Key 卡片
-   ============================================ */
-.api-key-card {
-    background: linear-gradient(135deg, #fdf2f4 0%, #faf0f2 100%);
-    border: 1.5px solid #ebd4da;
-    border-radius: 10px;
-    padding: 14px 16px 10px 16px;
-    margin-bottom: 6px;
-}
-.api-key-card .card-header {
-    display: flex; align-items: center; gap: 8px;
-    margin-bottom: 8px;
-}
-.api-key-card .card-icon {
-    font-size: 1.2rem;
-}
-.api-key-card .card-title {
-    font-size: 0.88rem; font-weight: 700; color: #4a3b40;
-}
-.api-key-card .card-hint {
-    font-size: 0.72rem; color: #a09095; margin-top: 4px; line-height: 1.4;
-}
-/* 卡片内的输入框 */
-.api-key-card [data-testid="stTextInput"] {
-    margin-top: 2px;
-}
-.api-key-card input {
-    background: #ffffff !important;
-    border: 1px solid #e0d4d8 !important;
-    border-radius: 6px !important;
-    font-size: 0.85rem !important;
-    padding: 8px 12px !important;
-}
-.api-key-card input:focus {
-    border-color: #c97d8b !important;
-    box-shadow: 0 0 0 2px rgba(201,125,139,0.12) !important;
-}
-
-/* 侧边栏小标签 */
-.sidebar-label {
-    font-size: 0.85rem; font-weight: 700; color: #4a3b40;
-    margin-bottom: 4px;
-}
-
-/* 状态指示点 */
-.key-status { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
-.key-status-dot {
-    width: 7px; height: 7px; border-radius: 50%; display: inline-block;
-}
-.key-status-dot.set { background: #6b9b7a; }
-.key-status-dot.empty { background: #d0c4c8; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -382,37 +330,24 @@ with st.sidebar:
     if "reset_counter" not in st.session_state:
         st.session_state["reset_counter"] = 0
 
-    # ── API Key 卡片 ──
+    # ── API Key ──
     if "api_key_value" not in st.session_state:
         st.session_state["api_key_value"] = st.query_params.get("_k", "")
 
-    key_set = bool(st.session_state["api_key_value"])
-
-    st.markdown(f"""
-    <div class="api-key-card">
-        <div class="card-header">
-            <span class="card-icon">🔑</span>
-            <span class="card-title">DeepSeek API Key</span>
-        </div>
-    """, unsafe_allow_html=True)
-
+    st.markdown("##### 🔑 DeepSeek API Key")
     user_api_key = st.text_input(
-        "API Key", type="password",
+        "API Key",
+        type="password",
         value=st.session_state["api_key_value"],
         placeholder="sk-xxxxxxxxxxxxxxxx",
         label_visibility="collapsed",
         key=f"api_key_{st.session_state.reset_counter}",
     )
 
-    dot_class = "set" if key_set else "empty"
-    status_text = "已配置 ✓" if key_set else "请输入你的 Key，用完即走不会存储"
-    st.markdown(f"""
-        <div class="key-status">
-            <span class="key-status-dot {dot_class}"></span>
-            <span class="card-hint">{status_text}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    if user_api_key:
+        st.caption("✅ 已配置，关掉浏览器也不会丢失")
+    else:
+        st.caption("输入你的 Key，用完即走不会存储到服务器")
 
     # ── 保存/清除 Key ──
     if user_api_key and user_api_key != st.session_state.get("_last_saved_key"):
@@ -424,10 +359,10 @@ with st.sidebar:
         st.session_state["api_key_value"] = ""
         st.query_params.pop("_k", None)
 
-    st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
+    st.divider()
 
     # ── 文件上传 ──
-    st.markdown('<div class="sidebar-label">📄 选择论文文件</div>', unsafe_allow_html=True)
+    st.markdown("##### 📄 选择论文文件")
 
     def _on_upload():
         key = f"file_uploader_{st.session_state.reset_counter}"
@@ -447,13 +382,11 @@ with st.sidebar:
 
     st.divider()
 
-    st.markdown('<div class="reset-btn-wrapper">', unsafe_allow_html=True)
     if st.button("🔄 重新开始", use_container_width=True):
         next_val = st.session_state.get("reset_counter", 0) + 1
         st.session_state.clear()
         st.session_state["reset_counter"] = next_val
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════
 # 头部
