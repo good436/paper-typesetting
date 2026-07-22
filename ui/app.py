@@ -331,22 +331,29 @@ with st.sidebar:
 
     # ── API Key ──
     if "api_key_value" not in st.session_state:
-        st.session_state["api_key_value"] = st.query_params.get("_k", "")
+        st.session_state["api_key_value"] = ""
 
     st.markdown("##### 🔑 DeepSeek API Key")
-    st.markdown("""
-    <style>
-    .api-key-masked input {
-        -webkit-text-security: disc !important;
-    }
-    </style>
-    """, unsafe_allow_html=True)
+
+    # 用 localStorage 记住 Key，避免 value= 产生的 "Press Enter to apply"
+    st.components.v1.html("""
+    <script>
+    (function() {
+        var saved = localStorage.getItem('paper_typesetting_api_key');
+        if (saved) {
+            // 存到 sessionStorage 给 Python 读
+            sessionStorage.setItem('_restored_key', saved);
+            localStorage.removeItem('paper_typesetting_api_key');
+        }
+    })();
+    </script>
+    """, height=0)
 
     with st.form("api_key_form", clear_on_submit=False, border=False):
+        # 从 sessionStorage 恢复（无 value= 参数）
         user_api_key = st.text_input(
             "API Key",
             type="default",
-            value=st.session_state["api_key_value"],
             placeholder="sk-xxxxxxxxxxxxxxxx",
             label_visibility="collapsed",
             key=f"api_key_{st.session_state.reset_counter}",
@@ -355,9 +362,13 @@ with st.sidebar:
 
     if saved:
         if user_api_key:
-            st.session_state["_last_saved_key"] = user_api_key
             st.session_state["api_key_value"] = user_api_key
-            st.query_params["_k"] = user_api_key
+            # 写入浏览器 localStorage
+            st.components.v1.html(f"""
+            <script>
+            localStorage.setItem('paper_typesetting_api_key', '{user_api_key}');
+            </script>
+            """, height=0)
             st.toast("✅ API Key 已保存", icon="✅")
         else:
             st.toast("⚠️ 请输入 Key", icon="⚠️")
@@ -365,7 +376,7 @@ with st.sidebar:
     if st.session_state["api_key_value"]:
         st.caption("✅ 已配置，关掉浏览器也不会丢失")
     else:
-        st.caption("输入你的 Key，用完即走不会存储到服务器")
+        st.caption("输入你的 Key，点保存后自动记住")
 
     st.divider()
 
