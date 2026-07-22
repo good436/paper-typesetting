@@ -24,9 +24,10 @@ if "@" not in raw_input:
 receiver_email = raw_input
 print(f"📨 即将发送邮件至：{receiver_email}")
 
-mail_host = 'smtp.163.com'
-mail_user = '13652001060@163.com'
-mail_pass = 'YLT6XjWK8C2g66AU'
+import os
+mail_host = os.getenv('EMAIL_HOST', 'smtp.163.com')
+mail_user = os.getenv('EMAIL_USER', '')
+mail_pass = os.getenv('EMAIL_PASS', '')
 
 sender = mail_user
 receivers = [receiver_email]

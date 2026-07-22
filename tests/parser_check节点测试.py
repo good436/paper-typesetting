@@ -37,7 +37,7 @@ layout_agent_rules = {
     "other": [],
 }
 
-ZHIPUAI_API_KEY = "f4909101a9ae4b11b9360187bb23e4b5.jhAhTcvXbY4gUWUx"
+ZHIPUAI_API_KEY = os.getenv("ZHIPUAI_API_KEY", "")  # 从环境变量读取
 
 
 def get_llm(

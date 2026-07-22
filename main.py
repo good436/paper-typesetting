@@ -120,7 +120,7 @@ if __name__ == "__main__":
         raise
 
     try:
-        email = "13652001060@163.com"
+        email = os.getenv("TEST_EMAIL", "test@example.com")
         config = {"configurable": {"thread_id": thread_id}}
         for chunk in app.stream(Command(resume=email),config=config, stream_mode="values"):
             print("Received chunk:", chunk)
