@@ -3,6 +3,9 @@ from langchain_core.messages import AIMessage, SystemMessage
 
 
 def parser_check_node(state: MaingraphState):
+    # 已匹配过 → 直接返回
+    if state.get("request_group") and len(state["request_group"]) > 0:
+        return {"messages": [AIMessage(content="解析匹配已完成，跳过")]}
     input_parser = state["user_input_parser"]
     paper_parser = state["paper_file_parser"]
     # print(">>>>>   ",paper_parser)

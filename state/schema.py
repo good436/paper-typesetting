@@ -69,6 +69,7 @@ class MaingraphState(TypedDict, total=False):
     verification_status: Annotated[StatusResult, "整体验证状态"]
     verification_success_result: List[VerificationItem]
     verification_failed_result: List[VerificationItem]
+    verification_issues: Annotated[List[Dict[str, Any]], update_state]
     should_terminate: Annotated[bool, "是否终止流程"]
 
     final_status: Annotated[Optional[str], "最终状态"]

@@ -1,5 +1,5 @@
 from state.schema import MaingraphState
-from tools.utils import zhipu_llm
+from tools.utils import get_llm
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -41,8 +41,8 @@ def cover_node(state: MaingraphState):
     ]
     tool_lookup = {tool.name: tool for tool in tools}
 
-    llm = zhipu_llm(
-        thinking="enabled", temperature=0.3, timeout=240.0, model="glm-4.5-air"
+    llm = get_llm(
+        temperature=0.3, timeout=240.0
     )
     llm_with_tools = llm.bind_tools(tools)
     system_prompt = """
@@ -177,7 +177,6 @@ def cover_node(state: MaingraphState):
             }
         },
         "agent_done_count": 1,
-        "layout_check_retry": layout_check_retrycount + 1,
         "messages": system_messages + [
             AIMessage(
                 content=f"【Cover Agent】执行完成：{overall_status}，成功 {success_count}/{total_tasks} 项"

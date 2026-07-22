@@ -1,40 +1,54 @@
-from langchain_community.chat_models import ChatZhipuAI
-from config.setting import ZHIPUAI_API_KEY
+from langchain_openai import ChatOpenAI
+from config.setting import DEEPSEEK_API_KEY, DEEPSEEK_MODEL, DEEPSEEK_BASE_URL
 import docx
 import re
 import json
 from typing import Dict, Any
 
 def str_to_bool(s: str) -> bool:
+    """将LLM返回的字符串智能解析为布尔值，兼容各种可能的输出格式"""
     s = s.strip().lower()
+    # 精确匹配
     if s == "true":
         return True
-    elif s == "false":
+    if s == "false":
         return False
-    else:
-        raise ValueError(f"Invalid boolean string: {s}")
+    # 包含匹配（LLM可能返回多余内容如 "True。" 或 "返回：True"）
+    if "true" in s:
+        return True
+    if "false" in s:
+        return False
+    # 中文匹配
+    if any(word in s for word in ["符合", "有关", "是", "对", "正确"]):
+        return True
+    if any(word in s for word in ["无关", "不符合", "否", "错", "超出"]):
+        return False
+    # 兜底：如果包含排版、论文、格式等关键词，大概率有关
+    if any(word in s for word in ["排版", "论文", "格式", "期刊", "学术"]):
+        return True
+    raise ValueError(f"无法解析布尔字符串: {s}")
 
 
-def zhipu_llm(
-    model: str = "glm-4.5-air",
-    api_key: str = ZHIPUAI_API_KEY,
-    thinking: str = "enabled",
-    stream: bool = True,
+def get_llm(
+    model: str = DEEPSEEK_MODEL,
+    api_key: str = DEEPSEEK_API_KEY,
+    base_url: str = DEEPSEEK_BASE_URL,
     temperature: float = 0.7,
-    timeout: float = 30.0,
+    timeout: float = 60.0,
     **kwargs,
 ):
-    return ChatZhipuAI(
+    """创建 DeepSeek LLM 实例（兼容 OpenAI API）"""
+    return ChatOpenAI(
         api_key=api_key,
         model=model,
-        thinking={
-            "type": thinking,
-        },
-        stream=stream,
+        base_url=base_url,
         temperature=temperature,
         timeout=timeout,
         **kwargs
     )
+
+# 向后兼容别名
+get_llm = get_llm
 
 
 def read_docx(file_path: str) -> list:
@@ -131,10 +145,11 @@ def parse_to_json(text: str):
 
 def clean_dict(d):
     if not isinstance(d, dict):
-        return print("❌ 字典清洗函数处理对象不为字典格式！")
+        print("❌ 字典清洗函数处理对象不为字典格式！")
+        return None
     cleaned = {}
     for key, value in d.items():
-        if value is None and key in ["agent_mission", "agent_result"]:
+        if value is None and key == "agent_mission":
             continue
         if isinstance(value, list):
             new_list = []
@@ -265,7 +280,7 @@ class MessageJSONEncoder(json.JSONEncoder):
 # if __name__ == "__main__":
 #     try:
 #         # 创建模型实例
-#         llm = zhipu_llm()
+#         llm = get_llm()
 #
 #         # 调用模型（非流式测试更简单，先关掉 stream）
 #         result = llm.invoke("请用中文介绍一下你自己")

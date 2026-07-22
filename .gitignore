@@ -1,0 +1,30 @@
+# 环境配置（含敏感信息）
+.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 输出文件
+data/output/*.docx
+data/output/*.json
+
+# 上传临时文件
+ui/temp_uploads/
+
+# 向量库
+vectorstore/*.db
+
+# OS
+.DS_Store
+Thumbs.db

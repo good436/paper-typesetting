@@ -7,7 +7,7 @@ from typing import Optional, Literal, Dict, Any
 import traceback
 
 ZHIPUAI_API_KEY ="f4909101a9ae4b11b9360187bb23e4b5.jhAhTcvXbY4gUWUx"
-def zhipu_llm(model: str = 'glm-4.5-air',api_key: str = ZHIPUAI_API_KEY,thinking: str = 'enabled',stream: bool = True,temperature: float = 0.7,timeout: float = 30.0,**kwargs):
+def get_llm(model: str = 'glm-4.5-air',api_key: str = ZHIPUAI_API_KEY,thinking: str = 'enabled',stream: bool = True,temperature: float = 0.7,timeout: float = 30.0,**kwargs):
     return ChatZhipuAI(
         api_key=api_key,
         model=model,
@@ -321,7 +321,7 @@ def check_author_affiliation_by_llm(state: Dict[str, Any]) -> Dict[str, Any]:
             requirement=requirement,
             content=content
         )
-        llm = zhipu_llm(
+        llm = get_llm(
             thinking="enabled", temperature=0.1, timeout=120.0
         )
         response = llm.invoke(prompt)
@@ -439,7 +439,7 @@ def check_author_name_format(state: Dict[str, Any]) -> Dict[str, Any]:
             requirement=requirement,
             content=content
         )
-        llm = zhipu_llm(temperature=0.1)
+        llm = get_llm(temperature=0.1)
         response = llm.invoke(prompt)
         raw_output = response.content.strip()
 
@@ -697,7 +697,7 @@ tools = [
     ]
 
 tool_lookup = {tool.name: tool for tool in tools}
-llm = zhipu_llm(thinking="enabled", temperature=0.3, timeout=120.0, model="glm-4.5-air")
+llm = get_llm(thinking="enabled", temperature=0.3, timeout=120.0, model="glm-4.5-air")
 llm_with_tools = llm.bind_tools(tools)
 
 system_prompt = """

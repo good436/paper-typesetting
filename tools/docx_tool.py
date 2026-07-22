@@ -4,7 +4,7 @@ from langchain_core.tools import tool
 import json
 import re
 from typing import Optional, Literal, Dict, Any
-from tools.utils import zhipu_llm
+from tools.utils import get_llm
 
 # 检查类工具
 @tool
@@ -308,7 +308,7 @@ def check_author_affiliation_by_llm(state: Dict[str, Any]) -> Dict[str, Any]:
             requirement=requirement,
             content=content
         )
-        llm = zhipu_llm(
+        llm = get_llm(
             thinking="enabled", temperature=0.1, timeout=120.0
         )
         response = llm.invoke(prompt)
@@ -426,7 +426,7 @@ def check_author_name_format(state: Dict[str, Any]) -> Dict[str, Any]:
             requirement=requirement,
             content=content
         )
-        llm = zhipu_llm(temperature=0.1)
+        llm = get_llm(temperature=0.1)
         response = llm.invoke(prompt)
         raw_output = response.content.strip()
 
@@ -660,5 +660,91 @@ def set_paragraph_indent(first_line: Optional[float] = None,hanging: Optional[fl
         "action": "set_paragraph",
         "data": {
             "styles": {"indent": indent_info}
+        }
+    }
+
+# ══════════════════════════════════════════════════
+# 页眉页脚 & 页码工具
+# ══════════════════════════════════════════════════
+
+@tool
+def set_page_header(text: str, font_name: str = "宋体", font_size: str = "小五",
+                    align: str = "center") -> Dict[str, Any]:
+    """
+    设置页眉文字和格式。
+
+    Args:
+        text (str): 页眉文字内容，如"XX大学硕士学位论文"
+        font_name (str): 字体，默认"宋体"
+        font_size (str): 字号，默认"小五"（9pt），常用小五号
+        align (str): 对齐方式，left/center/right，默认"center"
+
+    Returns:
+        dict: 操作指令
+    """
+    return {
+        "status": "success",
+        "action": "set_header",
+        "data": {
+            "text": text,
+            "font_name": font_name,
+            "font_size": font_size,
+            "align": align
+        }
+    }
+
+
+@tool
+def set_page_footer(text: str, font_name: str = "宋体", font_size: str = "小五",
+                    align: str = "center") -> Dict[str, Any]:
+    """
+    设置页脚文字（不含页码，页码用 set_page_number）。
+
+    Args:
+        text (str): 页脚文字
+        font_name (str): 字体，默认"宋体"
+        font_size (str): 字号，默认"小五"
+        align (str): 对齐方式，默认"center"
+
+    Returns:
+        dict: 操作指令
+    """
+    return {
+        "status": "success",
+        "action": "set_footer",
+        "data": {
+            "text": text,
+            "font_name": font_name,
+            "font_size": font_size,
+            "align": align
+        }
+    }
+
+
+@tool
+def set_page_number(position: str = "center_bottom",
+                     start_from: int = 1,
+                     first_page_show: bool = False) -> Dict[str, Any]:
+    """
+    设置页码格式和起始编号。
+
+    Args:
+        position (str): 页码位置
+            - "center_bottom": 页脚居中（默认，学术论文最常用）
+            - "right_bottom": 页脚右侧
+            - "center_top": 页眉居中
+        start_from (int): 起始页码，默认从1开始
+        first_page_show (bool): 首页是否显示页码，默认不显示（学术论文首页通常无页码）
+
+    Returns:
+        dict: 操作指令
+    """
+    return {
+        "status": "success",
+        "action": "set_page_number",
+        "data": {
+            "position": position,
+            "start_from": start_from,
+            "first_page_show": first_page_show
         }
     }

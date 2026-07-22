@@ -8,6 +8,7 @@ import os
 import random
 from typing import Dict, List, Any
 from langchain_core.messages import AIMessage, SystemMessage
+from pathlib import Path
 
 # 中文字号映射表
 CHINESE_TO_PTS = {
@@ -23,6 +24,16 @@ ALIGN_MAP = {
     "justify": WD_PARAGRAPH_ALIGNMENT.JUSTIFY,
 }
 
+# 字体映射
+FONT_MAP = {
+    "宋体": "宋体",
+    "黑体": "黑体",
+    "楷体": "楷体",
+    "仿宋": "仿宋",
+    "times new roman": "Times New Roman",
+    "times": "Times New Roman",
+}
+
 # 文档组装工具集
 DOCUMENT_TOOLS = {
     # 字体格式工具
@@ -36,6 +47,9 @@ DOCUMENT_TOOLS = {
     # 文档结构工具
     "add_section_break", "set_page_margins", "add_page_number"
 }
+
+# 所有子图Agent的名称列表
+ALL_AGENT_NAMES = ["cover", "text", "author", "chart", "fund", "reference", "other"]
 
 
 def resolve_font_size(size: str) -> float:
@@ -156,22 +170,156 @@ def add_issues_section(doc, verification_issues):
         run_suggestion.font.color.rgb = RGBColor(0, 128, 0)  # 绿色
 
 
+def collect_all_layout_items(state: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """遍历所有Agent结果，收集排版条目并按原始顺序排列"""
+    all_items = []
+
+    for agent_name in ALL_AGENT_NAMES:
+        agent_state = state.get(agent_name, {})
+        agent_missions = agent_state.get("agent_mission", [])
+        agent_result = agent_state.get("agent_result", {})
+        layout_results = agent_result.get("layout_result", [])
+
+        if not agent_missions or not layout_results:
+            continue
+
+        # 构建 mission 查找表
+        mission_map = {}
+        for mission in agent_missions:
+            key = (mission.get("section"), mission.get("subsection"))
+            mission_map[key] = mission
+
+        for item in layout_results:
+            section = item.get("section")
+            subsection = item.get("subsection")
+            lookup_key = (section, subsection)
+
+            mission = mission_map.get(lookup_key, {})
+            content = mission.get("content", "")
+
+            all_items.append({
+                "agent_name": agent_name,
+                "section": section,
+                "subsection": subsection,
+                "content": content,
+                "status": item.get("status"),
+                "tool_execution_results": item.get("tool_execution_results", []),
+            })
+
+    return all_items
+
+
+def apply_header_footer(doc, all_layout_items, assembly_log):
+    """从排版结果中提取并应用页眉页脚页码设置"""
+    header_config = None
+    footer_config = None
+    page_number_config = None
+
+    for item in all_layout_items:
+        for exec_res in item.get("tool_execution_results", []):
+            if exec_res.get("execution_result", {}).get("status") != "success":
+                continue
+            action = exec_res.get("execution_result", {}).get("result", {}).get("action", "")
+            data = exec_res.get("execution_result", {}).get("result", {}).get("data", {})
+            if action == "set_header":
+                header_config = data
+                assembly_log.append(f"📋 页眉: {data.get('text', '')}")
+            elif action == "set_footer":
+                footer_config = data
+                assembly_log.append(f"📋 页脚: {data.get('text', '')}")
+            elif action == "set_page_number":
+                page_number_config = data
+                assembly_log.append(f"📋 页码: 位置={data.get('position','center_bottom')} 起始={data.get('start_from',1)}")
+
+    if not header_config and not footer_config and not page_number_config:
+        return
+
+    SIZE_MAP = {"小五": 9, "五号": 10.5, "小四": 12, "四号": 14, "三号": 16}
+    for section in doc.sections:
+        # 页眉
+        if header_config:
+            header = section.header
+            header.is_linked_to_previous = False
+            hp = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
+            hp.text = ""
+            run = hp.add_run(header_config.get("text", ""))
+            run.font.name = header_config.get("font_name", "宋体")
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), header_config.get("font_name", "宋体"))
+            size_str = header_config.get("font_size", "小五")
+            run.font.size = Pt(SIZE_MAP.get(size_str, 9))
+            align_map = {"left": 0, "center": 1, "right": 2}
+            hp.alignment = align_map.get(header_config.get("align", "center"), 1)
+
+        # 页脚
+        if footer_config:
+            footer = section.footer
+            footer.is_linked_to_previous = False
+            fp = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+            fp.text = ""
+            run = fp.add_run(footer_config.get("text", ""))
+            run.font.name = footer_config.get("font_name", "宋体")
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), footer_config.get("font_name", "宋体"))
+            size_str = footer_config.get("font_size", "小五")
+            run.font.size = Pt(SIZE_MAP.get(size_str, 9))
+            align_map = {"left": 0, "center": 1, "right": 2}
+            fp.alignment = align_map.get(footer_config.get("align", "center"), 1)
+
+        # 页码
+        if page_number_config:
+            footer = section.footer
+            fp = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+            # 添加页码域
+            from docx.oxml import OxmlElement
+            fld_char_begin = OxmlElement('w:fldChar')
+            fld_char_begin.set(qn('w:fldCharType'), 'begin')
+            instr_text = OxmlElement('w:instrText')
+            instr_text.set(qn('xml:space'), 'preserve')
+            start_from = page_number_config.get("start_from", 1)
+            instr_text.text = f'PAGE \\* MERGEFORMAT'
+            fld_char_end = OxmlElement('w:fldChar')
+            fld_char_end.set(qn('w:fldCharType'), 'end')
+            run_page = fp.add_run()
+            run_page._r.append(fld_char_begin)
+            run_page._r.append(instr_text)
+            run_page._r.append(fld_char_end)
+            run_page.font.size = Pt(9)
+            fp.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            # 设置起始页码
+            sect_pr = section._sectPr
+            if sect_pr is None:
+                sect_pr = OxmlElement('w:sectPr')
+                section._element.append(sect_pr)
+            pg_num_type = OxmlElement('w:pgNumType')
+            pg_num_type.set(qn('w:start'), str(start_from))
+            sect_pr.append(pg_num_type)
+
+
 def assemble_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """文档组装车间 - 将各个部件组装成完整文档"""
+    """文档组装车间 - 将所有Agent的排版结果组装成完整文档"""
     system_messages = [
         SystemMessage(content="<-- 进入 09 文档组装车间 -->")
     ]
 
-    # 获取封面数据和验证问题
-    cover = state.get("cover", {})
     verification_issues = state.get("verification_issues", [])
 
-    agent_mission = cover.get("agent_mission", [])
-    layout_result = cover.get("agent_result", {}).get("layout_result", [])
+    # 收集所有Agent的排版结果
+    all_layout_items = collect_all_layout_items(state)
 
-    if not agent_mission:
-        system_messages.append(SystemMessage(content="⚠️ 无排版任务，生成空文档"))
-        # 仍然创建文档，但内容为空
+    if not all_layout_items:
+        system_messages.append(SystemMessage(content="⚠️ 无排版任务结果，生成空文档"))
+        doc = Document()
+        # 使用项目相对路径
+        output_dir = str(Path(__file__).resolve().parent.parent / "data" / "output")
+        os.makedirs(output_dir, exist_ok=True)
+        random_suffix = random.randint(1000, 9999)
+        filename = f"文档组装结果_{random_suffix}.docx"
+        output_file = os.path.join(output_dir, filename)
+        doc.save(output_file)
+        return {
+            "messages": system_messages + [SystemMessage(content=f"⚠️ 已生成空文档: {output_file}")],
+            "final_paper": os.path.abspath(output_file),
+            "awaiting": "user_email",
+        }
 
     # 创建 Word 文档
     doc = Document()
@@ -183,33 +331,39 @@ def assemble_node(state: Dict[str, Any]) -> Dict[str, Any]:
     section.left_margin = Inches(1.25)
     section.right_margin = Inches(1.25)
 
-    # 构建内容映射
-    content_map = {}
-    for item in agent_mission:
-        content = item.get("content")
-        if content:
-            key = item.get("subsection") or item.get("section")
-            if key:
-                content_map[key] = content
-
-    # 组装文档主体内容
+    # 组装文档主体内容（按原始顺序）
     assembly_log = []
-    for item in layout_result:
-        subsection = item.get("subsection")
-        section_name = item.get("section")
-        lookup_key = subsection or section_name
+    agent_statistics = {}
 
-        content = content_map.get(lookup_key)
+    # 应用页眉页脚页码
+    apply_header_footer(doc, all_layout_items, assembly_log)
+
+    for idx, item in enumerate(all_layout_items):
+        content = item.get("content", "")
+        agent_name = item.get("agent_name", "unknown")
+
         if not content:
+            assembly_log.append(f"⏭️ [{agent_name}] {item.get('section')}-{item.get('subsection')}: 无内容，跳过")
             continue
 
-        # 添加新段落
+        # 如果换了 agent，添加分节标识（第一个不加）
+        if idx > 0 and agent_name != all_layout_items[idx - 1].get("agent_name"):
+            p_sep = doc.add_paragraph()
+            p_sep.alignment = WD_PARAGRAPH_ALIGNMENT.CENTER
+            run_sep = p_sep.add_run(f"———— {agent_name} 排版区域 ————")
+            run_sep.font.size = Pt(9)
+            run_sep.font.color.rgb = RGBColor(180, 180, 180)
+
+        # 添加段落
         p = doc.add_paragraph()
         run = p.add_run(content)
 
         # 应用所有格式工具
         tool_count = 0
         for exec_res in item.get("tool_execution_results", []):
+            if exec_res.get("execution_result", {}).get("status") != "success":
+                continue
+
             tool_name = exec_res.get("tool_name")
             if tool_name in DOCUMENT_TOOLS:
                 try:
@@ -220,17 +374,23 @@ def assemble_node(state: Dict[str, Any]) -> Dict[str, Any]:
                     )
                     tool_count += 1
                 except Exception as e:
-                    assembly_log.append(f"❌ {lookup_key} - {tool_name}: {e}")
+                    assembly_log.append(f"❌ [{agent_name}] {item.get('subsection')} - {tool_name}: {e}")
 
-        assembly_log.append(f"✅ {lookup_key}: 应用 {tool_count} 个工具")
+        assembly_log.append(f"✅ [{agent_name}] {item.get('subsection') or item.get('section')}: 应用 {tool_count} 个工具")
+
+        # 统计
+        if agent_name not in agent_statistics:
+            agent_statistics[agent_name] = {"count": 0, "tool_count": 0}
+        agent_statistics[agent_name]["count"] += 1
+        agent_statistics[agent_name]["tool_count"] += tool_count
 
     # 添加验证问题汇总
     if verification_issues:
         add_issues_section(doc, verification_issues)
         assembly_log.append(f"📝 添加了 {len(verification_issues)} 个待改进问题")
 
-    # 保存文档
-    output_dir = r"D:\Project\agent_project\src\05paper_layout_agent\experiment\output"
+    # 保存文档（使用项目相对路径）
+    output_dir = str(Path(__file__).resolve().parent.parent / "data" / "output")
     os.makedirs(output_dir, exist_ok=True)
 
     random_suffix = random.randint(1000, 9999)
@@ -241,9 +401,15 @@ def assemble_node(state: Dict[str, Any]) -> Dict[str, Any]:
         doc.save(output_file)
         abs_path = os.path.abspath(output_file)
 
-        # 添加组装日志到系统消息
+        # 添加统计信息到日志
+        stats_lines = ["📊 组装统计："]
+        for agent, stats in agent_statistics.items():
+            stats_lines.append(f"  - {agent}: {stats['count']} 项，{stats['tool_count']} 个工具")
+
         for log in assembly_log:
             system_messages.append(SystemMessage(content=log))
+        for stats_line in stats_lines:
+            system_messages.append(SystemMessage(content=stats_line))
 
         system_messages.append(SystemMessage(content=f"🎉 文档组装完成: {abs_path}"))
 
@@ -252,7 +418,8 @@ def assemble_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "final_paper": abs_path,
             "awaiting": "user_email",
             "assembly_log": assembly_log,
-            "issues_count": len(verification_issues)
+            "issues_count": len(verification_issues),
+            "agent_statistics": agent_statistics,
         }
 
     except Exception as e:

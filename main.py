@@ -1,7 +1,11 @@
+import os
+from pathlib import Path
 from graph.builder import create_formatting_graph
 import uuid
 from langgraph.types import Command
 
+# 项目根目录
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 app = create_formatting_graph()
 
@@ -43,14 +47,28 @@ def run_formatting_process(user_input: str, paper_file_path: str, thread_id: str
 
         "agent_carry_count": None,
         "agent_done_count": 0,
-        "awaiting":None,
+        "awaiting": None,
     }
     for chunk in app.stream(initial_state, config=config, stream_mode="values"):
         yield chunk
 
 
 if __name__ == "__main__":
-    # 测试数据
+    # 测试数据文件路径（相对于项目根目录）
+    paper_file_path = str(PROJECT_ROOT / "data" / "input" / "测试论文数据.docx")
+
+    # 如果默认测试文件不存在，尝试其他测试文件
+    if not os.path.exists(paper_file_path):
+        # 尝试查找 data/input 下的 docx 文件
+        input_dir = PROJECT_ROOT / "data" / "input"
+        docx_files = list(input_dir.glob("*.docx")) if input_dir.exists() else []
+        if docx_files:
+            paper_file_path = str(docx_files[0])
+            print(f"📄 使用测试文件: {paper_file_path}")
+        else:
+            print(f"⚠️ 未找到测试docx文件，请将论文放入 {input_dir}")
+            exit(1)
+
     user_input = """你好，请你帮我把我的论文格式调整一下。
 
 要求如下：
@@ -90,7 +108,6 @@ if __name__ == "__main__":
 （摘要：宋体，小四，1.5倍行距）
 
 """
-    paper_file_path = r"D:\Project\agent_project\src\05paper_layout_agent\experiment\input\测试论文数据.docx"
     thread_id = str(uuid.uuid4())
 
     print(f"开始测试，thread_id: {thread_id}")

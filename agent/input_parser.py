@@ -1,6 +1,6 @@
 from state.schema import MaingraphState
-from tools.utils import zhipu_llm, parse_to_json
-from langchain.prompts import FewShotChatMessagePromptTemplate, ChatPromptTemplate
+from tools.utils import get_llm, parse_to_json
+from langchain_core.prompts import FewShotChatMessagePromptTemplate, ChatPromptTemplate
 from langchain_core.messages import AIMessage,SystemMessage
 from config.prompt import input_parser_prompt, input_parser_prompt_examples, input_parser_paper_sections
 def is_empty_rules(rules):
@@ -16,6 +16,10 @@ def is_empty_rules(rules):
 
 # 后续要加上对文档的识别，因为有的期刊将论文模版以模版形式发布，用户会上传文档作为要求
 def input_parser_node(state:MaingraphState):
+    # 已成功解析过 → 直接返回，不重复调 LLM
+    if (state.get("user_input_parser") or {}).get("status") == "success":
+        return {"messages": [AIMessage(content="用户输入解析已完成，跳过")]}
+
     default_styles = {
         "论文题目": [{"字体": "黑体"}, {"字号": "三号"}, {"加粗": "是"}, {"对齐": "居中"}],
         "作者姓名": [{"字体": "宋体"}, {"字号": "小四"}, {"对齐": "居中"}],
@@ -43,7 +47,7 @@ def input_parser_node(state:MaingraphState):
     system_messages = [
         SystemMessage(content="<-- 进入 02 解析用户输入 Node -->")
     ]
-    llm = zhipu_llm(thinking='disabled', temperature=0.1)
+    llm = get_llm(temperature=0.1)
     user_input = state.get("user_input")
     retry_count = state.get("input_parser_retry")
     paper_sections = input_parser_paper_sections

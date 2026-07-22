@@ -40,7 +40,7 @@ layout_agent_rules = {
 ZHIPUAI_API_KEY = "f4909101a9ae4b11b9360187bb23e4b5.jhAhTcvXbY4gUWUx"
 
 
-def zhipu_llm(
+def get_llm(
     model: str = "glm-4.5-air",
     api_key: str = ZHIPUAI_API_KEY,
     thinking: str = "enabled",

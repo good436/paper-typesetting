@@ -1,6 +1,6 @@
 import json
 from typing import Dict, Any, List
-from tools.utils import zhipu_llm
+from tools.utils import get_llm
 from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
 
@@ -13,7 +13,7 @@ def validator_node_test(json_file_path: str):
         SystemMessage(content="<-- 进入 08 检验器节点（测试版） -->")
     ]
 
-    llm = zhipu_llm(model="glm-4.5-air", temperature=0.3, timeout=240.0)
+    llm = get_llm(model="glm-4.5-air", temperature=0.3, timeout=240.0)
 
 
     prompt_template = """

@@ -26,10 +26,11 @@ def send_email_node(state: MaingraphState):
     filename = os.path.basename(attachment_path)
     system_messages.append(SystemMessage(content=f"📎 准备发送附件：{filename}"))
 
-    # 3. 邮件配置
-    mail_host = 'smtp.163.com'
-    mail_user = '13652001060@163.com'
-    mail_pass = 'YLT6XjWK8C2g66AU'
+    # 3. 邮件配置（从环境变量读取）
+    mail_host = os.getenv("EMAIL_HOST", "smtp.163.com")
+    mail_port = int(os.getenv("EMAIL_PORT", "465"))
+    mail_user = os.getenv("EMAIL_USER", "")
+    mail_pass = os.getenv("EMAIL_PASS", "")
     sender = mail_user
 
     # 4. 构建邮件
@@ -92,7 +93,7 @@ def send_email_node(state: MaingraphState):
 
     # 5. 发送邮件
     try:
-        with smtplib.SMTP_SSL(mail_host, 465) as smtp:
+        with smtplib.SMTP_SSL(mail_host, mail_port) as smtp:
             smtp.login(mail_user, mail_pass)
             smtp.sendmail(sender, [receiver_email], message.as_string())
         system_messages.append(SystemMessage(content="✅ 邮件发送成功！"))

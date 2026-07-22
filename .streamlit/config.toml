@@ -1,0 +1,22 @@
+[server]
+# 热加载：监听所有代码变化，自动刷新
+runOnSave = true
+
+# Windows 上用 poll 模式更稳定
+fileWatcherType = "poll"
+
+# 监听范围：不仅监听主文件，还监听所有导入的模块
+maxUploadSize = 50
+
+# 启动时自动打开浏览器
+headless = false
+
+# 端口
+port = 8501
+
+[browser]
+# 启动时自动打开
+gatherUsageStats = false
+
+[logger]
+level = "info"

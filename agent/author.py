@@ -1,113 +1,178 @@
 from state.schema import MaingraphState
-from tools.utils import zhipu_llm
-from langgraph.prebuilt import create_react_agent
-from langchain_core.messages import HumanMessage
+from tools.utils import get_llm
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate
-from tools.docx_tool import *
-from langchain_core.messages import AIMessage
+from tools.docx_tool import (
+    set_font_name, set_font_size, set_font_bold, set_font_italic,
+    set_paragraph_align, set_line_spacing, set_paragraph_indent,
+    check_author_affiliation_by_llm, check_author_name_format,
+    set_page_header, set_page_footer, set_page_number,
+)
 from langchain_core.tools import tool
-import re
+import json
 from typing import List, Dict, Any, Optional
-from typing import Optional, Literal
 
-"""（5）作者简介：对文章的全部作者按以下顺序介绍：姓名（出生年-），性别，
-籍贯，学历，职称，研究方向。如，张三（1986-），男，吉林长春人，博士，
-副教授，主要从事信息资源管理研究。"""
 
 def author_node(state: MaingraphState):
-    print(">>>>>> 进入 author 排版节点!!!")
+    """作者信息排版Agent - 负责作者简介、作者贡献声明、作者姓名格式检查"""
+    system_messages = [
+        SystemMessage(content="<-- 进入 07 作者 Agent 排版 Node -->")
+    ]
 
-    # agent_mission = state.get("agent_mission", [])
-    # layout_check_retrycount = state.get("layout_check_retry", 0)
-    #
-    # task_details = []
-    # required_fields = ["姓名", "性别", "籍贯", "学历", "职称", "研究方向"]
-    #
-    # for task in agent_mission:
-    #     section = task.get("section", "作者信息")
-    #     author_text = task.get("author_text", "")
-    #     format_requirement = task.get("format_requirement", "")
-    #
-    #     detected_fields = [field.strip("（）()-0123456789") for field in format_requirement.split("，") if field.strip()]
-    #      missing = []
-    #     for field in detected_fields:
-    #           keyword = field.replace("研究方向", "研究").replace("出生年", "出生").strip()
-    #         if keyword not in author_text and len(keyword) > 1:
-    #             missing.append(field)
-    #
-    #     if not missing:
-    #         status = "success"
-    #         overall_status = "success"
-    #         tool_name = "set_author_bio"
-    #         tool_args = {
-    #             "text": author_text.strip(),
-    #             "format_ok": True
-    #         }
-    #         execution_result = {
-    #             "status": "success",
-    #             "result": {"message": "作者简介完整，格式符合要求"}
-    #         }
-    #     else:
-    #         status = "failed"
-    #         tool_name = "highlight_missing_author_fields"
-    #         tool_args = {
-    #             "missing_fields": missing,
-    #             "suggestion": f"请补充以下信息：{', '.join(missing)}",
-    #             "highlight_style": {
-    #                 "background_color": "red",
-    #                 "color": "white",
-    #                 "tag": "<mark>",  # 可执行渲染标记
-    #                 "auto_apply": False  # 需人工确认
-    #             }
-    #         }
-    #         execution_result = {
-    #             "status": "error",
-    #             "error": f"作者简介缺少字段：{', '.join(missing)}"
-    #         }
-    #
-    #     # 构造标准格式输出
-    #     task_detail = {
-    #         "section": section,
-    #         "status": status,
-    #         "raw_model_response": format_requirement,
-    #         "tool_calls": [
-    #             {
-    #                 "id": f"call_author_{hash(tuple(missing)) % 10000}",
-    #                 "function": {
-    #                     "name": tool_name,
-    #                     "arguments": json.dumps(tool_args, ensure_ascii=False)
-    #                 },
-    #                 "type": "tool_call"
-    #             }
-    #         ],
-    #         "tool_execution_results": [
-    #             {
-    #                 "tool_call_id": f"call_author_{hash(tuple(missing)) % 10000}",
-    #                 "tool_name": tool_name,
-    #                 "args": tool_args,
-    #                 "execution_result": execution_result
-    #             }
-    #         ]
-    #     }
-    #     task_details.append(task_detail)
-    #
-    # # 统计整体状态
-    # success_count = sum(1 for t in task_details if t["status"] == "success")
-    # total_tasks = len(task_details)
-    # overall_status = "success" if success_count == total_tasks else "failed"
-    #
-    # return {
-    #     "author": {
-    #         "agent_result": {
-    #             "status": overall_status,
-    #             "layout_result": task_details
-    #         }
-    #     },
-    #     "agent_done_count": 1,
-    #     "layout_check_retry": layout_check_retrycount + 1,
-    #     "messages": [
-    #         AIMessage(
-    #             content=f"【Author Agent】执行完成：{overall_status}，成功 {success_count}/{total_tasks} 项"
-    #         )
-    #     ],
-    # }
+    layout_check_retrycount = state.get("layout_check_retry", 0)
+
+    tools = [
+        set_font_name,
+        set_font_size,
+        set_font_bold,
+        set_font_italic,
+        set_paragraph_align,
+        set_line_spacing,
+        set_paragraph_indent,
+        check_author_affiliation_by_llm,
+        check_author_name_format,
+        set_page_header, set_page_footer, set_page_number,
+    ]
+    tool_lookup = {tool.name: tool for tool in tools}
+
+    llm = get_llm(
+        temperature=0.3, timeout=240.0
+    )
+    llm_with_tools = llm.bind_tools(tools)
+
+    system_prompt = """
+    你是一个专业的作者信息排版大师，负责将排版任务转换为代码参数，以支持后续的工具调用。
+
+    ## 你的职责范围
+    - 作者简介格式化（姓名、出生年、性别、籍贯、学历、职称、研究方向）
+    - 作者贡献声明格式化
+    - 作者姓名格式检查（中英文姓名格式）
+    - 作者单位信息格式检查
+
+    ## 任务说明
+    - 你会接收到包含排版要求的任务详情
+    - 理解用户的具体排版要求，选择合适的执行工具
+    - 对于格式设置类要求，使用 set_* 系列工具
+    - 对于格式检查类要求，使用 check_* 系列工具
+    - 将要求转换成工具可以执行的参数格式
+
+    ## 作者简介标准格式
+    姓名（出生年-），性别，籍贯，学历，职称，研究方向。
+    如：张三（1986-），男，吉林长春人，博士，副教授，主要从事信息资源管理研究。
+
+    ## 字号对照
+    - 三号 ≈ 16pt, 四号 ≈ 14pt, 小四 ≈ 12pt, 五号 ≈ 10.5pt
+
+    ## 输出规则
+    - 你只能通过 tool call 执行操作
+    - 不要输出思考过程、说明、总结或自然语言解释
+    - 输出：直接生成 tool calls
+    """
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", system_prompt),
+            ("human", "请根据以下任务生成对应的格式化指令：\n{mission}"),
+        ]
+    )
+
+    task_details = []
+
+    for task in state.get("agent_mission", []):
+        input_messages = prompt.format_messages(mission=json.dumps(task, ensure_ascii=False))
+
+        try:
+            response = llm_with_tools.invoke(input_messages)
+
+            tool_calls = getattr(response, "tool_calls", []) or []
+            raw_content = getattr(response, "content", "").strip() if isinstance(getattr(response, "content", ""), str) else ""
+
+            execution_results = []
+
+            for tc in tool_calls:
+                if not isinstance(tc, dict):
+                    execution_results.append({
+                        "tool_call_id": None,
+                        "tool_name": "unknown",
+                        "args": {},
+                        "execution_result": {"status": "error", "error": f"无效 tool_call 类型: {type(tc)}"}
+                    })
+                    continue
+
+                name = tc.get("name")
+                args = tc.get("args", {})
+
+                if name not in tool_lookup:
+                    error = f"工具未注册: {name}，可用: {list(tool_lookup.keys())}"
+                    execution_results.append({
+                        "tool_call_id": tc.get("id"),
+                        "tool_name": name,
+                        "args": args,
+                        "execution_result": {"status": "error", "error": error}
+                    })
+                else:
+                    try:
+                        result = tool_lookup[name].invoke(args)
+                        execution_results.append({
+                            "tool_call_id": tc.get("id"),
+                            "tool_name": name,
+                            "args": args,
+                            "execution_result": {"status": "success", "result": result}
+                        })
+                    except Exception as e:
+                        execution_results.append({
+                            "tool_call_id": tc.get("id"),
+                            "tool_name": name,
+                            "args": args,
+                            "execution_result": {"status": "error", "error": str(e)}
+                        })
+
+            if not tool_calls:
+                status = "failed"
+            else:
+                success_count = sum(1 for r in execution_results if r["execution_result"]["status"] == "success")
+                status = "success" if success_count == len(execution_results) else "partial_success"
+
+            task_detail = {
+                "section": task.get("section"),
+                "subsection": task.get("subsection"),
+                "status": status,
+                "raw_model_response": raw_content,
+                "tool_calls": tool_calls,
+                "tool_execution_results": execution_results,
+            }
+            task_details.append(task_detail)
+
+        except Exception as e:
+            system_messages.append(SystemMessage(content=f"❌ 处理失败: {task.get('subsection')} | {str(e)}"))
+            task_details.append({
+                "section": task.get("section"),
+                "subsection": task.get("subsection"),
+                "status": "error",
+                "raw_model_response": f"调用异常: {str(e)}",
+                "tool_calls": [],
+                "tool_execution_results": [],
+            })
+
+    success_count = sum(1 for t in task_details if t["status"] == "success")
+    total_tasks = len(task_details)
+    overall_status = (
+        "success"
+        if success_count == total_tasks and total_tasks > 0
+        else "partial_success" if success_count > 0 else "failed"
+    )
+
+    return {
+        "author": {
+            "agent_result": {
+                "status": overall_status,
+                "layout_result": task_details
+            }
+        },
+        "agent_done_count": 1,
+        "messages": system_messages + [
+            AIMessage(
+                content=f"【Author Agent】执行完成：{overall_status}，成功 {success_count}/{total_tasks} 项"
+            )
+        ],
+    }
