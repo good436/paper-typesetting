@@ -330,13 +330,31 @@ with st.sidebar:
         st.session_state["reset_counter"] = 0
 
     st.markdown("**🔑 DeepSeek API Key**")
-    st.caption("使用你自己的Key，不会存储也不会被他人看到")
+    st.caption("输入一次自动记住，刷新页面不用重填")
+
+    # ── 从 URL 参数恢复 API Key ──
+    if "api_key_value" not in st.session_state:
+        st.session_state["api_key_value"] = st.query_params.get("_k", "")
+
     user_api_key = st.text_input(
         "API Key", type="password",
+        value=st.session_state["api_key_value"],
         placeholder="sk-xxxxxxxxxxxxxxxx",
         label_visibility="collapsed",
         key=f"api_key_{st.session_state.reset_counter}",
     )
+
+    # ── 只在 Key 变化时写入 URL，避免无限循环 ──
+    if user_api_key and user_api_key != st.session_state.get("_last_saved_key"):
+        st.session_state["_last_saved_key"] = user_api_key
+        st.session_state["api_key_value"] = user_api_key
+        st.query_params["_k"] = user_api_key
+    elif not user_api_key and "_last_saved_key" in st.session_state:
+        # 用户清空了 Key，清除记忆
+        del st.session_state["_last_saved_key"]
+        st.session_state["api_key_value"] = ""
+        st.query_params.pop("_k", None)
+
     st.divider()
 
     st.markdown("**选择论文文件**")
