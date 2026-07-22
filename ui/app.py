@@ -307,6 +307,59 @@ footer { visibility: hidden; }
 [data-testid="stToolbar"] {
     background: transparent !important;
 }
+
+/* ============================================
+   侧边栏 - API Key 卡片
+   ============================================ */
+.api-key-card {
+    background: linear-gradient(135deg, #fdf2f4 0%, #faf0f2 100%);
+    border: 1.5px solid #ebd4da;
+    border-radius: 10px;
+    padding: 14px 16px 10px 16px;
+    margin-bottom: 6px;
+}
+.api-key-card .card-header {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+}
+.api-key-card .card-icon {
+    font-size: 1.2rem;
+}
+.api-key-card .card-title {
+    font-size: 0.88rem; font-weight: 700; color: #4a3b40;
+}
+.api-key-card .card-hint {
+    font-size: 0.72rem; color: #a09095; margin-top: 4px; line-height: 1.4;
+}
+/* 卡片内的输入框 */
+.api-key-card [data-testid="stTextInput"] {
+    margin-top: 2px;
+}
+.api-key-card input {
+    background: #ffffff !important;
+    border: 1px solid #e0d4d8 !important;
+    border-radius: 6px !important;
+    font-size: 0.85rem !important;
+    padding: 8px 12px !important;
+}
+.api-key-card input:focus {
+    border-color: #c97d8b !important;
+    box-shadow: 0 0 0 2px rgba(201,125,139,0.12) !important;
+}
+
+/* 侧边栏小标签 */
+.sidebar-label {
+    font-size: 0.85rem; font-weight: 700; color: #4a3b40;
+    margin-bottom: 4px;
+}
+
+/* 状态指示点 */
+.key-status { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.key-status-dot {
+    width: 7px; height: 7px; border-radius: 50%; display: inline-block;
+}
+.key-status-dot.set { background: #6b9b7a; }
+.key-status-dot.empty { background: #d0c4c8; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -329,12 +382,19 @@ with st.sidebar:
     if "reset_counter" not in st.session_state:
         st.session_state["reset_counter"] = 0
 
-    st.markdown("**🔑 DeepSeek API Key**")
-    st.caption("输入一次自动记住，刷新页面不用重填")
-
-    # ── 从 URL 参数恢复 API Key ──
+    # ── API Key 卡片 ──
     if "api_key_value" not in st.session_state:
         st.session_state["api_key_value"] = st.query_params.get("_k", "")
+
+    key_set = bool(st.session_state["api_key_value"])
+
+    st.markdown(f"""
+    <div class="api-key-card">
+        <div class="card-header">
+            <span class="card-icon">🔑</span>
+            <span class="card-title">DeepSeek API Key</span>
+        </div>
+    """, unsafe_allow_html=True)
 
     user_api_key = st.text_input(
         "API Key", type="password",
@@ -344,22 +404,31 @@ with st.sidebar:
         key=f"api_key_{st.session_state.reset_counter}",
     )
 
-    # ── 只在 Key 变化时写入 URL，避免无限循环 ──
+    dot_class = "set" if key_set else "empty"
+    status_text = "已配置 ✓" if key_set else "请输入你的 Key，用完即走不会存储"
+    st.markdown(f"""
+        <div class="key-status">
+            <span class="key-status-dot {dot_class}"></span>
+            <span class="card-hint">{status_text}</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── 保存/清除 Key ──
     if user_api_key and user_api_key != st.session_state.get("_last_saved_key"):
         st.session_state["_last_saved_key"] = user_api_key
         st.session_state["api_key_value"] = user_api_key
         st.query_params["_k"] = user_api_key
     elif not user_api_key and "_last_saved_key" in st.session_state:
-        # 用户清空了 Key，清除记忆
         del st.session_state["_last_saved_key"]
         st.session_state["api_key_value"] = ""
         st.query_params.pop("_k", None)
 
-    st.divider()
+    st.markdown('<div style="height: 12px;"></div>', unsafe_allow_html=True)
 
-    st.markdown("**选择论文文件**")
+    # ── 文件上传 ──
+    st.markdown('<div class="sidebar-label">📄 选择论文文件</div>', unsafe_allow_html=True)
 
-    # on_change：文件变化时同步更新 session_state
     def _on_upload():
         key = f"file_uploader_{st.session_state.reset_counter}"
         f_obj = st.session_state.get(key)
@@ -368,10 +437,8 @@ with st.sidebar:
                 "name": f_obj.name, "size": f_obj.size, "data": f_obj.getvalue()
             }
         else:
-            # 用户点了 × 清除文件
             st.session_state["uploaded_file_data"] = None
 
-    # 文件上传器始终显示 — 不切换成卡片，消除 DOM 替换导致的闪屏
     st.file_uploader(
         "选择论文文件", type=["docx"], label_visibility="collapsed",
         key=f"file_uploader_{st.session_state.reset_counter}",
