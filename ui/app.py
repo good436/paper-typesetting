@@ -329,28 +329,28 @@ with st.sidebar:
     if "reset_counter" not in st.session_state:
         st.session_state["reset_counter"] = 0
 
-    # ── API Key ──
+    # ── API Key（用 localStorage + URL 参数双边记住，不用 value= 所以没有 Press Enter to apply）──
     if "api_key_value" not in st.session_state:
-        st.session_state["api_key_value"] = ""
+        st.session_state["api_key_value"] = st.query_params.get("_k", "")
 
     st.markdown("##### 🔑 DeepSeek API Key")
 
-    # 用 localStorage 记住 Key，避免 value= 产生的 "Press Enter to apply"
-    st.components.v1.html("""
-    <script>
-    (function() {
-        var saved = localStorage.getItem('paper_typesetting_api_key');
-        if (saved) {
-            // 存到 sessionStorage 给 Python 读
-            sessionStorage.setItem('_restored_key', saved);
-            localStorage.removeItem('paper_typesetting_api_key');
-        }
-    })();
-    </script>
-    """, height=0)
+    # 首次加载：从 localStorage 恢复到 URL 参数
+    if not st.session_state["api_key_value"]:
+        st.components.v1.html("""
+        <script>
+        (function() {
+            var saved = localStorage.getItem('paper_typesetting_api_key');
+            if (saved && !window.location.search.includes('_k=')) {
+                var url = new URL(window.location);
+                url.searchParams.set('_k', saved);
+                window.location.replace(url.toString());
+            }
+        })();
+        </script>
+        """, height=0)
 
     with st.form("api_key_form", clear_on_submit=False, border=False):
-        # 从 sessionStorage 恢复（无 value= 参数）
         user_api_key = st.text_input(
             "API Key",
             type="default",
@@ -363,7 +363,7 @@ with st.sidebar:
     if saved:
         if user_api_key:
             st.session_state["api_key_value"] = user_api_key
-            # 写入浏览器 localStorage
+            st.query_params["_k"] = user_api_key
             st.components.v1.html(f"""
             <script>
             localStorage.setItem('paper_typesetting_api_key', '{user_api_key}');
@@ -374,9 +374,9 @@ with st.sidebar:
             st.toast("⚠️ 请输入 Key", icon="⚠️")
 
     if st.session_state["api_key_value"]:
-        st.caption("✅ 已配置，关掉浏览器也不会丢失")
+        st.caption("✅ 已配置（刷新不会丢失）")
     else:
-        st.caption("输入你的 Key，点保存后自动记住")
+        st.caption("输入你的 Key，点「保存」后自动记住")
 
     st.divider()
 
